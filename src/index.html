@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Typewriter Notes</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app-shell theme-classic">
+      <header class="titlebar">
+        <div class="traffic-spacer"></div>
+        <div class="app-mark">
+          <span class="mark-key">TN</span>
+          <span>Typewriter Notes</span>
+        </div>
+        <div class="win98-controls" aria-hidden="true">
+          <span>_</span>
+          <span>□</span>
+          <span>×</span>
+        </div>
+        <nav class="menu-strip" aria-label="Command menu">
+          <button class="menu-chip" data-command="new">New Note <kbd>⌘N</kbd></button>
+          <button class="menu-chip" data-command="export">Export <kbd>⌘E</kbd></button>
+          <button class="menu-chip" data-command="focus">Focus Mode</button>
+          <label class="select-wrap">
+            Theme
+            <select id="themeSelect" aria-label="Theme selector"></select>
+          </label>
+          <button class="menu-chip" data-command="settings">Settings</button>
+        </nav>
+      </header>
+
+      <div class="workspace">
+        <aside class="library-panel" aria-label="Notebook library">
+          <div class="panel-header">
+            <span>Library</span>
+            <button class="round-button" data-command="new" title="New note">+</button>
+          </div>
+          <label class="search-box">
+            <span>Search</span>
+            <input id="searchInput" type="search" placeholder="Find notes" />
+          </label>
+          <div id="notebookList" class="notebook-list"></div>
+        </aside>
+
+        <aside class="note-panel" aria-label="Notes">
+          <div class="panel-header">
+            <span>Notes</span>
+            <span id="noteCount" class="soft-count"></span>
+          </div>
+          <div id="noteList" class="note-list"></div>
+        </aside>
+
+        <main class="editor-wrap">
+          <div class="editor-toolbar">
+            <div>
+              <input id="titleInput" class="title-input" aria-label="Note title" />
+              <div id="noteMeta" class="note-meta"></div>
+            </div>
+            <label class="toggle-control" title="Typewriter sound">
+              <input id="soundToggle" type="checkbox" />
+              <span>Typewriter sound</span>
+            </label>
+          </div>
+          <section class="paper-stage" aria-label="Writing editor">
+            <textarea id="editor" spellcheck="true" aria-label="Note body"></textarea>
+          </section>
+        </main>
+
+        <aside class="inspector-panel" aria-label="Inspector">
+          <div class="panel-header">
+            <span>Inspector</span>
+          </div>
+          <section class="inspector-section">
+            <h2>Tags</h2>
+            <div id="tagCloud" class="tag-cloud"></div>
+          </section>
+          <section class="inspector-section">
+            <h2>Goal</h2>
+            <div class="goal-row">
+              <input id="goalInput" type="number" min="0" step="50" />
+              <span>words</span>
+            </div>
+            <div class="meter"><span id="goalMeter"></span></div>
+          </section>
+          <section class="inspector-section">
+            <h2>Dates</h2>
+            <dl class="facts">
+              <div><dt>Created</dt><dd id="createdDate"></dd></div>
+              <div><dt>Modified</dt><dd id="modifiedDate"></dd></div>
+            </dl>
+          </section>
+          <section class="inspector-section">
+            <h2>Draft History</h2>
+            <div id="historyStack" class="history-stack"></div>
+          </section>
+          <section class="inspector-section">
+            <h2>Export</h2>
+            <button class="wide-button" data-command="export">Choose format</button>
+          </section>
+        </aside>
+      </div>
+
+      <footer class="statusbar">
+        <span id="wordCount">0 words</span>
+        <span id="charCount">0 characters</span>
+        <span id="themeStatus">Classic Paper</span>
+        <span id="savedState">Saved</span>
+      </footer>
+    </div>
+
+    <dialog id="exportDialog" class="desktop-dialog">
+      <form method="dialog">
+        <header>
+          <h2>Export Draft</h2>
+          <button value="close" aria-label="Close">×</button>
+        </header>
+        <div class="dialog-body">
+          <button value="txt" class="export-option">Plain Text <span>.txt</span></button>
+          <button value="md" class="export-option">Markdown <span>.md</span></button>
+          <button value="pdf" class="export-option">PDF Layout <span>.pdf</span></button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="settingsDialog" class="desktop-dialog settings-dialog">
+      <form method="dialog">
+        <header>
+          <h2>Preferences</h2>
+          <button value="close" aria-label="Close">×</button>
+        </header>
+        <div class="dialog-body">
+          <label class="setting-row">
+            <span>Default notebook</span>
+            <select id="defaultNotebook"></select>
+          </label>
+          <label class="setting-row">
+            <span>Paper width</span>
+            <input id="paperWidth" type="range" min="620" max="860" step="20" />
+          </label>
+          <label class="setting-row checkbox-row">
+            <span>Show inspector by default</span>
+            <input id="showInspector" type="checkbox" />
+          </label>
+          <label class="setting-row checkbox-row">
+            <span>Auto-save drafts</span>
+            <input id="autoSave" type="checkbox" />
+          </label>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="./renderer.js"></script>
+  </body>
+</html>

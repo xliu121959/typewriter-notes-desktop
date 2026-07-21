@@ -1,0 +1,44 @@
+{
+  "name": "typewriter-notes-desktop",
+  "version": "0.1.0",
+  "description": "A polished desktop prototype for Typewriter Notes.",
+  "main": "src/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test:smoke": "electron scripts/smoke-test.js",
+    "dist:mac": "electron-builder --mac dmg",
+    "dist:win": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.typewriternotes.app",
+    "productName": "Typewriter Notes",
+    "files": [
+      "src/**/*",
+      "scripts/**/*",
+      "package.json",
+      "README.md"
+    ],
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": "nsis",
+      "artifactName": "${productName} Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "dmg": {
+      "artifactName": "${productName}-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  }
+}
