@@ -21,7 +21,9 @@
         </div>
         <nav class="menu-strip" aria-label="Command menu">
           <button class="menu-chip" data-command="new">New Note <kbd>⌘N</kbd></button>
+          <button class="menu-chip" data-command="import">Import</button>
           <button class="menu-chip" data-command="export">Export <kbd>⌘E</kbd></button>
+          <button class="menu-chip" data-command="save-version">Save Version</button>
           <button class="menu-chip" data-command="focus">Focus Mode</button>
           <label class="select-wrap">
             Theme
@@ -30,12 +32,17 @@
           <button class="menu-chip" data-command="settings">Settings</button>
         </nav>
       </header>
+      <input id="importInput" class="visually-hidden" type="file" accept=".txt,.md,.markdown,text/plain,text/markdown" multiple />
 
       <div class="workspace">
         <aside class="library-panel" aria-label="Notebook library">
           <div class="panel-header">
             <span>Library</span>
-            <button class="round-button" data-command="new" title="New note">+</button>
+            <div class="header-actions">
+              <button class="round-button" data-command="new-notebook" title="New notebook">▣</button>
+              <button class="round-button" data-command="rename-notebook" title="Rename notebook">✎</button>
+              <button class="round-button" data-command="new" title="New note">+</button>
+            </div>
           </div>
           <label class="search-box">
             <span>Search</span>
@@ -77,12 +84,19 @@
             <div id="tagCloud" class="tag-cloud"></div>
           </section>
           <section class="inspector-section">
-            <h2>Goal</h2>
-            <div class="goal-row">
-              <input id="goalInput" type="number" min="0" step="50" />
-              <span>words</span>
-            </div>
-            <div class="meter"><span id="goalMeter"></span></div>
+            <h2>Appearance</h2>
+            <label class="setting-row">
+              <span>Text size</span>
+              <input id="editorTextSize" type="range" min="14" max="24" step="1" />
+            </label>
+            <label class="setting-row">
+              <span>Font</span>
+              <select id="editorFont"></select>
+            </label>
+            <label class="setting-row color-row">
+              <span>Text color</span>
+              <input id="editorTextColor" type="color" />
+            </label>
           </section>
           <section class="inspector-section">
             <h2>Dates</h2>
@@ -93,6 +107,7 @@
           </section>
           <section class="inspector-section">
             <h2>Draft History</h2>
+            <button class="wide-button" data-command="save-version">Save current version</button>
             <div id="historyStack" class="history-stack"></div>
           </section>
           <section class="inspector-section">

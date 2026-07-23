@@ -42,14 +42,31 @@ async function run() {
       input(document.querySelector("#editor"), "hello typed world");
       pass("word count", document.querySelector("#wordCount").textContent.includes("3 words"));
       pass("character count", document.querySelector("#charCount").textContent.includes("17 characters"));
+      click('[data-command="save-version"]');
+      pass("save version", document.querySelectorAll("[data-version]").length >= 2);
+
+      input(document.querySelector("#editor"), "changed draft");
+      document.querySelector("[data-version]").click();
+      pass("restore version", document.querySelector("#editor").value.length > 0);
 
       click('[data-command="focus"]');
       pass("focus mode", document.querySelector("#app").classList.contains("focus-mode"));
 
       const theme = document.querySelector("#themeSelect");
-      theme.value = "night";
+      pass("simplified themes", theme.options.length === 2);
+      theme.value = "dark-classic";
       theme.dispatchEvent(new Event("change", { bubbles: true }));
-      pass("theme switching", document.querySelector("#app").classList.contains("theme-night"));
+      pass("theme switching", document.querySelector("#app").classList.contains("theme-dark-classic"));
+
+      input(document.querySelector("#editorTextSize"), "21");
+      const font = document.querySelector("#editorFont");
+      font.value = "georgia";
+      font.dispatchEvent(new Event("change", { bubbles: true }));
+      input(document.querySelector("#editorTextColor"), "#ff0000");
+      const editorStyle = getComputedStyle(document.querySelector("#editor"));
+      pass("appearance text size", editorStyle.fontSize === "21px");
+      pass("appearance font", editorStyle.fontFamily.toLowerCase().includes("georgia"));
+      pass("appearance color", editorStyle.color === "rgb(255, 0, 0)");
 
       click('[data-command="export"]');
       pass("export dialog", document.querySelector("#exportDialog").open);

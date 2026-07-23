@@ -1,13 +1,19 @@
-const STORAGE_KEY = "typewriter-notes-state-v1";
+const STORAGE_KEY = "typewriter-notes-state-v2";
+const LEGACY_STORAGE_KEY = "typewriter-notes-state-v1";
 
 const themes = [
-  { id: "classic", name: "Classic Paper", className: "theme-classic" },
-  { id: "night", name: "Night Desk", className: "theme-night" },
-  { id: "manuscript", name: "Manuscript", className: "theme-manuscript" },
-  { id: "terminal", name: "Terminal Draft", className: "theme-terminal" }
+  { id: "classic", name: "Classic", className: "theme-classic" },
+  { id: "dark-classic", name: "Dark Classic", className: "theme-dark-classic" }
 ];
 
-const notebooks = [
+const editorFonts = [
+  { id: "courier", name: "Courier New", value: '"Courier New", Courier, monospace' },
+  { id: "georgia", name: "Georgia", value: 'Georgia, "Times New Roman", serif' },
+  { id: "system", name: "System Sans", value: '"MS Sans Serif", Tahoma, "Segoe UI", system-ui, sans-serif' },
+  { id: "mono", name: "System Mono", value: 'ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace' }
+];
+
+const defaultNotebooks = [
   { id: "journal", name: "Journal" },
   { id: "drafts", name: "Drafts" },
   { id: "school", name: "School" },
@@ -21,60 +27,56 @@ const sampleNotes = [
     title: "Morning Pages",
     notebook: "journal",
     tags: ["journal", "daily"],
-    goal: 750,
     createdAt: "2026-07-10T08:15:00.000Z",
     modifiedAt: "2026-07-18T09:20:00.000Z",
     body: "The desk is quiet except for the keys. I want this page to stay simple: one thought after another, no bright badges, no stream of notifications, just ink finding its place.\n\nToday I am collecting loose fragments before the day gets noisy. A grocery list can wait. The chapter can wait. The important thing is to keep the carriage moving.",
-    history: ["Opened with coffee", "Trimmed first paragraph", "Added daily tag"]
+    versions: []
   },
   {
     id: "chapter-draft",
     title: "Chapter Draft",
     notebook: "drafts",
     tags: ["fiction", "chapter"],
-    goal: 1800,
     createdAt: "2026-07-04T16:44:00.000Z",
     modifiedAt: "2026-07-17T22:08:00.000Z",
     body: "Mara found the letter folded behind the drawer label, the paper gone soft at the corners. Whoever typed it had used a tired ribbon; every other line faded into gray, then returned with sudden force.\n\nShe read the date twice. It was impossible, which meant it was probably true.",
-    history: ["Version 3 saved", "Changed opening image", "Added drawer detail"]
+    versions: []
   },
   {
     id: "meeting-notes",
     title: "Meeting Notes",
     notebook: "work",
     tags: ["meeting", "planning"],
-    goal: 400,
     createdAt: "2026-07-12T14:00:00.000Z",
     modifiedAt: "2026-07-16T15:12:00.000Z",
     body: "Agenda\n- Confirm launch copy\n- Review export behavior\n- Decide whether sound defaults on\n\nDecisions\nThe writing surface should open immediately. Settings can remain compact. Export should feel like a small desktop command, not a wizard.",
-    history: ["Captured decisions", "Added export note", "Initial meeting draft"]
+    versions: []
   },
   {
     id: "essay-outline",
     title: "Essay Outline",
     notebook: "school",
     tags: ["essay", "outline"],
-    goal: 1200,
     createdAt: "2026-07-02T11:10:00.000Z",
     modifiedAt: "2026-07-13T18:35:00.000Z",
     body: "Thesis: Tools shape writing by changing the amount of friction between thought and page.\n\nI. Mechanical rhythm\nII. Revision as a visible act\nIII. Digital speed and attention\nIV. A useful middle ground",
-    history: ["Added thesis", "Reordered sections", "First outline"]
+    versions: []
   },
   {
     id: "ideas-to-revisit",
     title: "Ideas to Revisit",
     notebook: "archive",
     tags: ["ideas", "later"],
-    goal: 300,
     createdAt: "2026-06-29T19:05:00.000Z",
     modifiedAt: "2026-07-11T10:27:00.000Z",
     body: "Index-card mode for shuffling scenes.\nCorrection tape animation for deleted lines.\nA small margin bell when a writing goal is reached.\nExport templates for manuscript pages.",
-    history: ["Added margin bell idea", "Moved to archive", "Initial list"]
+    versions: []
   }
 ];
 
 const defaultState = {
-  notes: sampleNotes,
+  notebooks: defaultNotebooks,
+  notes: sampleNotes.map(seedVersions),
   selectedNoteId: "morning-pages",
   selectedNotebookId: "all",
   searchTerm: "",
@@ -83,6 +85,9 @@ const defaultState = {
     soundEnabled: false,
     defaultNotebook: "drafts",
     paperWidth: 740,
+    editorTextSize: 17,
+    editorFontId: "courier",
+    editorTextColor: "#000000",
     showInspector: true,
     autoSave: true
   },
@@ -95,6 +100,7 @@ let audioContext = null;
 
 const app = document.getElementById("app");
 const themeSelect = document.getElementById("themeSelect");
+const importInput = document.getElementById("importInput");
 const searchInput = document.getElementById("searchInput");
 const notebookList = document.getElementById("notebookList");
 const noteList = document.getElementById("noteList");
@@ -108,8 +114,6 @@ const charCount = document.getElementById("charCount");
 const themeStatus = document.getElementById("themeStatus");
 const savedState = document.getElementById("savedState");
 const tagCloud = document.getElementById("tagCloud");
-const goalInput = document.getElementById("goalInput");
-const goalMeter = document.getElementById("goalMeter");
 const createdDate = document.getElementById("createdDate");
 const modifiedDate = document.getElementById("modifiedDate");
 const historyStack = document.getElementById("historyStack");
@@ -117,19 +121,74 @@ const exportDialog = document.getElementById("exportDialog");
 const settingsDialog = document.getElementById("settingsDialog");
 const defaultNotebook = document.getElementById("defaultNotebook");
 const paperWidth = document.getElementById("paperWidth");
+const editorTextSize = document.getElementById("editorTextSize");
+const editorFont = document.getElementById("editorFont");
+const editorTextColor = document.getElementById("editorTextColor");
 const showInspector = document.getElementById("showInspector");
 const autoSave = document.getElementById("autoSave");
 
+function seedVersions(note) {
+  const createdAt = note.createdAt || new Date().toISOString();
+  return {
+    ...note,
+    versions: [
+      {
+        id: `${note.id}-initial`,
+        title: note.title,
+        body: note.body,
+        savedAt: createdAt,
+        label: "Initial draft"
+      }
+    ]
+  };
+}
+
+function migrateState(raw) {
+  const migrated = {
+    ...structuredClone(defaultState),
+    ...raw,
+    notebooks: Array.isArray(raw.notebooks) ? raw.notebooks : defaultNotebooks,
+    settings: { ...defaultState.settings, ...raw.settings }
+  };
+
+  if (!themes.some((theme) => theme.id === migrated.settings.themeId)) {
+    migrated.settings.themeId = migrated.settings.themeId === "night" || migrated.settings.themeId === "terminal" ? "dark-classic" : "classic";
+  }
+  if (!editorFonts.some((font) => font.id === migrated.settings.editorFontId)) migrated.settings.editorFontId = "courier";
+  if (!/^#[0-9a-f]{6}$/i.test(migrated.settings.editorTextColor || "")) {
+    migrated.settings.editorTextColor = migrated.settings.themeId === "dark-classic" ? "#00ff00" : "#000000";
+  }
+  migrated.settings.editorTextSize = Math.min(24, Math.max(14, Number(migrated.settings.editorTextSize) || 17));
+
+  migrated.notes = (migrated.notes || []).map((note) => {
+    const versions = Array.isArray(note.versions) && note.versions.length
+      ? note.versions
+      : Array.isArray(note.history)
+        ? note.history.map((label, index) => ({
+            id: `${note.id}-legacy-${index}`,
+            title: note.title,
+            body: note.body,
+            savedAt: note.modifiedAt || note.createdAt || new Date().toISOString(),
+            label
+          }))
+        : [];
+    return {
+      ...note,
+      tags: Array.isArray(note.tags) ? note.tags : [],
+      versions,
+      notebook: migrated.notebooks.some((book) => book.id === note.notebook) ? note.notebook : migrated.settings.defaultNotebook
+    };
+  });
+
+  if (!migrated.notes.length) migrated.notes = structuredClone(defaultState.notes);
+  if (!migrated.notes.some((note) => note.id === migrated.selectedNoteId)) migrated.selectedNoteId = migrated.notes[0].id;
+  return migrated;
+}
+
 function loadState() {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return structuredClone(defaultState);
-    const parsed = JSON.parse(stored);
-    return {
-      ...structuredClone(defaultState),
-      ...parsed,
-      settings: { ...defaultState.settings, ...parsed.settings }
-    };
+    const stored = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
+    return stored ? migrateState(JSON.parse(stored)) : structuredClone(defaultState);
   } catch {
     return structuredClone(defaultState);
   }
@@ -143,7 +202,7 @@ function persist(immediate = false) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     state.savedState = "Saved";
     savedState.textContent = "Saved";
-  }, immediate ? 0 : 320);
+  }, immediate ? 0 : 280);
 }
 
 function selectedNote() {
@@ -153,6 +212,14 @@ function selectedNote() {
 function countWords(text) {
   const matches = text.trim().match(/\S+/g);
   return matches ? matches.length : 0;
+}
+
+function slugify(value) {
+  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "note";
+}
+
+function escapeHtml(value) {
+  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 }
 
 function formatDate(value) {
@@ -172,30 +239,39 @@ function filteredNotes() {
   });
 }
 
+function notebookName(id) {
+  return state.notebooks.find((book) => book.id === id)?.name || "Notebook";
+}
+
 function renderThemeOptions() {
   themeSelect.innerHTML = themes.map((theme) => `<option value="${theme.id}">${theme.name}</option>`).join("");
   themeSelect.value = state.settings.themeId;
 }
 
+function renderFontOptions() {
+  editorFont.innerHTML = editorFonts.map((font) => `<option value="${font.id}">${font.name}</option>`).join("");
+  editorFont.value = state.settings.editorFontId;
+}
+
 function renderNotebookOptions() {
-  const counts = Object.fromEntries(notebooks.map((notebook) => [notebook.id, 0]));
+  const counts = Object.fromEntries(state.notebooks.map((notebook) => [notebook.id, 0]));
   state.notes.forEach((note) => {
     counts[note.notebook] = (counts[note.notebook] || 0) + 1;
   });
 
-  const items = [{ id: "all", name: "All Notes", count: state.notes.length }, ...notebooks.map((notebook) => ({ ...notebook, count: counts[notebook.id] || 0 }))];
+  const items = [{ id: "all", name: "All Notes", count: state.notes.length }, ...state.notebooks.map((notebook) => ({ ...notebook, count: counts[notebook.id] || 0 }))];
   notebookList.innerHTML = items
     .map(
       (item) => `
         <button class="notebook-button ${state.selectedNotebookId === item.id ? "active" : ""}" data-notebook="${item.id}">
-          <span>${item.name}</span>
+          <span>${escapeHtml(item.name)}</span>
           <span>${item.count}</span>
         </button>
       `
     )
     .join("");
 
-  defaultNotebook.innerHTML = notebooks.map((notebook) => `<option value="${notebook.id}">${notebook.name}</option>`).join("");
+  defaultNotebook.innerHTML = state.notebooks.map((notebook) => `<option value="${notebook.id}">${escapeHtml(notebook.name)}</option>`).join("");
   defaultNotebook.value = state.settings.defaultNotebook;
 }
 
@@ -206,12 +282,12 @@ function renderNoteList() {
     .map(
       (note) => `
         <button class="note-card ${note.id === state.selectedNoteId ? "active" : ""}" data-note="${note.id}">
-          <span class="note-card-title">${note.title || "Untitled Note"}</span>
+          <span class="note-card-title">${escapeHtml(note.title || "Untitled Note")}</span>
           <span class="note-card-meta">
             <span>${formatDate(note.modifiedAt)}</span>
             <span>${countWords(note.body)} words</span>
           </span>
-          <span class="note-card-tags">${note.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</span>
+          <span class="note-card-tags">${note.tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</span>
         </button>
       `
     )
@@ -224,23 +300,47 @@ function renderEditor() {
 
   titleInput.value = note.title;
   editor.value = note.body;
-  goalInput.value = note.goal;
-  noteMeta.textContent = `${notebooks.find((book) => book.id === note.notebook)?.name || "Notebook"} / modified ${formatTime(note.modifiedAt)}`;
-  tagCloud.innerHTML = note.tags.map((tag) => `<span class="tag">${tag}</span>`).join("");
+  noteMeta.textContent = `${notebookName(note.notebook)} / modified ${formatTime(note.modifiedAt)}`;
+  tagCloud.innerHTML = note.tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
   createdDate.textContent = formatDate(note.createdAt);
   modifiedDate.textContent = formatTime(note.modifiedAt);
-  historyStack.innerHTML = note.history.map((item) => `<div class="history-item">${item}</div>`).join("");
+  renderHistory();
   updateCounts();
+}
+
+function renderHistory() {
+  const note = selectedNote();
+  const versions = [...(note?.versions || [])].sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+  historyStack.innerHTML = versions.length
+    ? versions
+        .map(
+          (version) => `
+            <div class="history-item">
+              <span>${escapeHtml(version.label || "Saved version")}</span>
+              <small>${formatTime(version.savedAt)}</small>
+              <button class="mini-button" data-version="${version.id}">Restore</button>
+            </div>
+          `
+        )
+        .join("")
+    : `<div class="empty-state">No saved versions yet.</div>`;
 }
 
 function renderSettings() {
   const theme = themes.find((item) => item.id === state.settings.themeId) || themes[0];
+  const font = editorFonts.find((item) => item.id === state.settings.editorFontId) || editorFonts[0];
   app.className = `app-shell ${theme.className} ${app.classList.contains("focus-mode") ? "focus-mode" : ""}`;
   app.style.setProperty("--paper-width", `${state.settings.paperWidth}px`);
+  app.style.setProperty("--editor-font-size", `${state.settings.editorTextSize}px`);
+  app.style.setProperty("--editor-font-family", font.value);
+  app.style.setProperty("--editor-text-color", state.settings.editorTextColor);
   soundToggle.checked = state.settings.soundEnabled;
-  themeSelect.value = state.settings.themeId;
+  themeSelect.value = theme.id;
   themeStatus.textContent = theme.name;
   paperWidth.value = state.settings.paperWidth;
+  editorTextSize.value = state.settings.editorTextSize;
+  editorFont.value = font.id;
+  editorTextColor.value = state.settings.editorTextColor;
   showInspector.checked = state.settings.showInspector;
   autoSave.checked = state.settings.autoSave;
   document.querySelector(".inspector-panel").style.display = state.settings.showInspector ? "" : "none";
@@ -248,6 +348,7 @@ function renderSettings() {
 
 function renderAll() {
   renderThemeOptions();
+  renderFontOptions();
   renderNotebookOptions();
   renderNoteList();
   renderEditor();
@@ -258,13 +359,14 @@ function updateCounts() {
   const text = editor.value;
   const words = countWords(text);
   const chars = text.length;
-  const note = selectedNote();
   wordCount.textContent = `${words} ${words === 1 ? "word" : "words"}`;
   charCount.textContent = `${chars} ${chars === 1 ? "character" : "characters"}`;
-  if (note) {
-    const progress = note.goal > 0 ? Math.min(100, Math.round((words / note.goal) * 100)) : 0;
-    goalMeter.style.width = `${progress}%`;
-  }
+}
+
+function renderEditorDetailsOnly() {
+  const note = selectedNote();
+  noteMeta.textContent = `${notebookName(note.notebook)} / modified ${formatTime(note.modifiedAt)}`;
+  modifiedDate.textContent = formatTime(note.modifiedAt);
 }
 
 function updateNote(mutator) {
@@ -278,31 +380,25 @@ function updateNote(mutator) {
   if (state.settings.autoSave) persist();
 }
 
-function renderEditorDetailsOnly() {
-  const note = selectedNote();
-  noteMeta.textContent = `${notebooks.find((book) => book.id === note.notebook)?.name || "Notebook"} / modified ${formatTime(note.modifiedAt)}`;
-  modifiedDate.textContent = formatTime(note.modifiedAt);
-}
-
-function newNote() {
+function newNote(body = "", title = "Untitled Note", notebook = state.settings.defaultNotebook) {
   const now = new Date().toISOString();
-  const id = `note-${Date.now()}`;
+  const id = `note-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const note = {
     id,
-    title: "Untitled Note",
-    notebook: state.settings.defaultNotebook,
+    title,
+    notebook,
     tags: ["draft"],
-    goal: 500,
     createdAt: now,
     modifiedAt: now,
-    body: "",
-    history: ["Created new draft"]
+    body,
+    versions: []
   };
   state.notes.unshift(note);
   state.selectedNoteId = id;
   state.selectedNotebookId = "all";
   state.searchTerm = "";
   searchInput.value = "";
+  saveVersion("Created draft", note);
   renderAll();
   titleInput.focus();
   titleInput.select();
@@ -319,12 +415,35 @@ function selectNote(id) {
 function setNotebook(id) {
   state.selectedNotebookId = id;
   const notes = filteredNotes();
-  if (notes.length && !notes.some((note) => note.id === state.selectedNoteId)) {
-    state.selectedNoteId = notes[0].id;
-  }
+  if (notes.length && !notes.some((note) => note.id === state.selectedNoteId)) state.selectedNoteId = notes[0].id;
   renderNotebookOptions();
   renderNoteList();
   renderEditor();
+}
+
+function newNotebook() {
+  const name = window.prompt("New notebook name");
+  if (!name?.trim()) return;
+  const idBase = slugify(name);
+  let id = idBase;
+  let count = 2;
+  while (state.notebooks.some((book) => book.id === id)) id = `${idBase}-${count++}`;
+  state.notebooks.push({ id, name: name.trim() });
+  state.selectedNotebookId = id;
+  state.settings.defaultNotebook = id;
+  renderAll();
+  persist();
+}
+
+function renameNotebook() {
+  if (state.selectedNotebookId === "all") return;
+  const notebook = state.notebooks.find((book) => book.id === state.selectedNotebookId);
+  if (!notebook) return;
+  const name = window.prompt("Rename notebook", notebook.name);
+  if (!name?.trim()) return;
+  notebook.name = name.trim();
+  renderAll();
+  persist();
 }
 
 function toggleFocus(force) {
@@ -342,31 +461,94 @@ function openSettings() {
   settingsDialog.showModal();
 }
 
+function saveVersion(label = "Manual version", targetNote = selectedNote()) {
+  if (!targetNote) return;
+  targetNote.versions.unshift({
+    id: `version-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    title: targetNote.title,
+    body: targetNote.body,
+    savedAt: new Date().toISOString(),
+    label
+  });
+  targetNote.versions = targetNote.versions.slice(0, 20);
+  renderHistory();
+  persist();
+}
+
+function restoreVersion(id) {
+  const note = selectedNote();
+  const version = note?.versions.find((item) => item.id === id);
+  if (!note || !version) return;
+  saveVersion("Before restore", note);
+  note.title = version.title;
+  note.body = version.body;
+  note.modifiedAt = new Date().toISOString();
+  renderAll();
+  persist();
+}
+
 function playKeyClick() {
   if (!state.settings.soundEnabled) return;
   audioContext ||= new AudioContext();
   const osc = audioContext.createOscillator();
+  const filter = audioContext.createBiquadFilter();
   const gain = audioContext.createGain();
   osc.type = "square";
-  osc.frequency.value = 90 + Math.random() * 45;
-  gain.gain.setValueAtTime(0.025, audioContext.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.035);
-  osc.connect(gain);
+  osc.frequency.value = 110 + Math.random() * 90;
+  filter.type = "lowpass";
+  filter.frequency.value = 900;
+  gain.gain.setValueAtTime(0.045, audioContext.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.028);
+  osc.connect(filter);
+  filter.connect(gain);
   gain.connect(audioContext.destination);
   osc.start();
-  osc.stop(audioContext.currentTime + 0.04);
+  osc.stop(audioContext.currentTime + 0.03);
 }
 
-function fakeExport(format) {
+function downloadFile(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportNote(format) {
   const note = selectedNote();
   if (!note || format === "close") return;
-  const label = format === "txt" ? "TXT" : format === "md" ? "Markdown" : "PDF";
-  state.savedState = `${label} export ready`;
+  const filename = slugify(note.title || "untitled-note");
+  if (format === "txt") {
+    downloadFile(`${filename}.txt`, `${note.title}\n\n${note.body}`, "text/plain;charset=utf-8");
+  }
+  if (format === "md") {
+    downloadFile(`${filename}.md`, `# ${note.title}\n\n${note.body}`, "text/markdown;charset=utf-8");
+  }
+  if (format === "pdf") {
+    window.print();
+  }
+  state.savedState = format === "pdf" ? "Print dialog opened" : "Exported";
   savedState.textContent = state.savedState;
   setTimeout(() => {
-    state.savedState = "Saved";
     savedState.textContent = "Saved";
   }, 1400);
+}
+
+async function importFiles(files) {
+  const validFiles = [...files].filter((file) => /\.(txt|md|markdown)$/i.test(file.name));
+  for (const file of validFiles) {
+    const text = await file.text();
+    const title = file.name.replace(/\.(txt|md|markdown)$/i, "").replace(/[-_]+/g, " ").trim() || "Imported Note";
+    newNote(text, title, state.settings.defaultNotebook);
+  }
+  if (validFiles.length) {
+    state.savedState = `Imported ${validFiles.length}`;
+    savedState.textContent = state.savedState;
+  }
 }
 
 document.addEventListener("click", (event) => {
@@ -374,7 +556,11 @@ document.addEventListener("click", (event) => {
   if (commandButton) {
     const command = commandButton.dataset.command;
     if (command === "new") newNote();
+    if (command === "import") importInput.click();
     if (command === "export") openExport();
+    if (command === "save-version") saveVersion();
+    if (command === "new-notebook") newNotebook();
+    if (command === "rename-notebook") renameNotebook();
     if (command === "focus") toggleFocus();
     if (command === "settings") openSettings();
   }
@@ -384,6 +570,9 @@ document.addEventListener("click", (event) => {
 
   const notebookButton = event.target.closest("[data-notebook]");
   if (notebookButton) setNotebook(notebookButton.dataset.notebook);
+
+  const versionButton = event.target.closest("[data-version]");
+  if (versionButton) restoreVersion(versionButton.dataset.version);
 });
 
 titleInput.addEventListener("input", () => {
@@ -399,12 +588,6 @@ editor.addEventListener("input", () => {
   });
 });
 
-goalInput.addEventListener("input", () => {
-  updateNote((note) => {
-    note.goal = Number(goalInput.value) || 0;
-  });
-});
-
 searchInput.addEventListener("input", () => {
   state.searchTerm = searchInput.value;
   renderNoteList();
@@ -412,6 +595,8 @@ searchInput.addEventListener("input", () => {
 
 themeSelect.addEventListener("change", () => {
   state.settings.themeId = themeSelect.value;
+  if (state.settings.themeId === "dark-classic" && state.settings.editorTextColor === "#000000") state.settings.editorTextColor = "#00ff00";
+  if (state.settings.themeId === "classic" && state.settings.editorTextColor === "#00ff00") state.settings.editorTextColor = "#000000";
   renderSettings();
   persist();
 });
@@ -433,6 +618,24 @@ paperWidth.addEventListener("input", () => {
   persist();
 });
 
+editorTextSize.addEventListener("input", () => {
+  state.settings.editorTextSize = Number(editorTextSize.value);
+  renderSettings();
+  persist();
+});
+
+editorFont.addEventListener("change", () => {
+  state.settings.editorFontId = editorFont.value;
+  renderSettings();
+  persist();
+});
+
+editorTextColor.addEventListener("input", () => {
+  state.settings.editorTextColor = editorTextColor.value;
+  renderSettings();
+  persist();
+});
+
 showInspector.addEventListener("change", () => {
   state.settings.showInspector = showInspector.checked;
   renderSettings();
@@ -444,7 +647,12 @@ autoSave.addEventListener("change", () => {
   persist(true);
 });
 
-exportDialog.addEventListener("close", () => fakeExport(exportDialog.returnValue));
+importInput.addEventListener("change", () => {
+  importFiles(importInput.files);
+  importInput.value = "";
+});
+
+exportDialog.addEventListener("close", () => exportNote(exportDialog.returnValue));
 
 document.addEventListener("keydown", (event) => {
   const mod = event.metaKey || event.ctrlKey;
